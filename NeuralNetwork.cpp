@@ -170,14 +170,14 @@ bool NeuralNetwork::update() {
     {
         nodes.at(i)->bias -= learningRate * (nodes.at(i)->delta / batchSize);
         nodes.at(i)->delta = 0;
-    }
+    
         for (auto it = adjacencyList.at(i).begin(); it != adjacencyList.at(i).end(); it++) 
         {
             Connection& c = it->second;
             c.weight -=learningRate * (c.delta / batchSize);
             c.delta = 0;
         }
-
+    }
     flush();
     return true;
     
