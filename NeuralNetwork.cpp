@@ -182,13 +182,13 @@ bool NeuralNetwork::update() {
         return true;
     for(int i = 0; i < nodes.size(); i++)
     {
-        nodes.at(i)->bias -= learningRate * (nodes.at(i)->delta / batchSize);
+        nodes.at(i)->bias -= learningRate * nodes.at(i)->delta;
         nodes.at(i)->delta = 0;
     
         for (auto it = adjacencyList.at(i).begin(); it != adjacencyList.at(i).end(); it++) 
         {
             Connection& c = it->second;
-            c.weight -=learningRate * (c.delta / batchSize);
+            c.weight -= learningRate * c.delta;
             c.delta = 0;
         }
     }
