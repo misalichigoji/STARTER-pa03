@@ -121,9 +121,6 @@ bool NeuralNetwork::contribute(double y, double p) {
         nodes.at(i)->preActivationValue = 0;
     }
 
-
-    flush();
-
     return true;
 }
 // STUDENT TODO: IMPLEMENT
@@ -140,13 +137,30 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
     if (contributions.find(nodeId) != contributions.end())
         return contributions.at(nodeId);
 
-
     if (adjacencyList.at(nodeId).empty()) {
         // Base case: output node (no outgoing connections).
         // Seeds the backward pass with the initial error signal.
         // You do not need to understand this derivation.
         outgoingContribution = -1 * ((y - p) / (p * (1 - p)));
     }
+    else 
+    {
+        for (auto it = adjacencyList.at(nodeId).begin(); it != adjacencyList.at(nodeId).end(); it++) {
+            Connection& c = it->second;
+            incomingContribution = contribute(c.dest, y, p);
+            visitContributeNeighbor(c, incomingContribution, outgoingContribution);
+        }
+    }
+    bool isInputNode = false;
+    for (int i = 0; i < inputNodeIds.size(); i++) 
+    {
+        if (inputNodeIds.at(i) == nodeId)
+            isInputNode = true;
+    }
+
+    if (!isInputNode) 
+        visitContributeNode(nodeId, outgoingContribution);
+
     contributions[nodeId] = outgoingContribution;
     // Before returning, store outgoingContribution in the contributions map.
 
