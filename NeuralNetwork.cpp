@@ -54,13 +54,36 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
         cerr << "\tBut got: " << input.size() << endl;
         return vector<double>();
     }
+    queue<int> queued;
+    set<int> seen;
 
-    // BFT implementation goes here.
-    // Note: before traversal begins, each input value in `input` must be loaded into
-    // the corresponding input node's postActivationValue. Input nodes are not activated —
-    // their value is passed forward directly.
-    // Use visitPredictNode and visitPredictNeighbor to handle the neural network math
-    // at each step of your traversal.
+    for (int i = 0; i < inputNodeIds.size(); i++) { 
+        int iid = inputNodeIds.at(i);
+        nodes.at(iid)->postActivationValue = input.at(i);
+        queued.push(iid);
+        seen.insert(iid);
+    }
+    while (!queued.empty()) {
+        int currid = queued.front();
+        queued.pop();
+        bool isInputNode = false;
+        for (int i = 0; i < inputNodeIds.size(); i++) {
+            if (inputNodeIds.at(i) == currid)
+                isInputNode = true;
+        }
+
+        if (!isInputNode)
+            visitPredictNode(currid);
+        for (auto it = adjacencyList.at(currid).begin(); it != adjacencyList.at(currid).end(); it++) {
+            Connection c = it->second;
+            visitPredictNeighbor(c);
+
+            if (seen.find(c.dest) == seen.end()) {
+                queued.push(c.dest);
+                seen.insert(c.dest);
+            }
+        }
+    }
 
     vector<double> output;
     for (int i = 0; i < outputNodeIds.size(); i++) {
@@ -87,8 +110,16 @@ bool NeuralNetwork::contribute(double y, double p) {
     // starting from each input layer node.
     // Note: input layer nodes do not have a bias to update, so visitContributeNode
     // should not be called on them.
-    // The contributions map acts as your "visited" set and also stores each node's
+    // The contributions map acts as your "seen" set and also stores each node's
     // computed contribution so it is not recomputed if reached by multiple paths.
+    contributions.clear();
+    for (int i = 0; i < inputNodeIds.size(); i++)
+        contribute(inputNodeIds.at(i), y, p);
+    contributions.clear();
+    for (int i = 0; i < nodes.size(); i++) {
+        nodes.at(i)->postActivationValue = 0;
+        nodes.at(i)->preActivationValue = 0;
+    }
 
 
     flush();
@@ -106,6 +137,9 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
     NodeInfo* currNode = nodes.at(nodeId);
 
     // If this node is already in the contributions map, return its stored value immediately.
+    if (contributions.find(nodeId) != contributions.end())
+        return contributions.at(nodeId);
+
 
     if (adjacencyList.at(nodeId).empty()) {
         // Base case: output node (no outgoing connections).
@@ -113,7 +147,7 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
         // You do not need to understand this derivation.
         outgoingContribution = -1 * ((y - p) / (p * (1 - p)));
     }
-
+    contributions[nodeId] = outgoingContribution;
     // Before returning, store outgoingContribution in the contributions map.
 
     return outgoingContribution;
@@ -130,7 +164,20 @@ bool NeuralNetwork::update() {
     // bias update: bias = bias - (learningRate * delta)
     // weight update: weight = weight - (learningRate * delta)
     // reset the delta term for each node and connection to zero.
-    
+    if (!batchSize)
+        return true;
+    for(int i = 0; i < nodes.size(); i++)
+    {
+        nodes.at(i)->bias -= learningRate * (nodes.at(i)->delta / batchSize);
+        nodes.at(i)->delta = 0;
+    }
+        for (auto it = adjacencyList.at(i).begin(); it != adjacencyList.at(i).end(); it++) 
+        {
+            Connection& c = it->second;
+            c.weight -=learningRate * (c.delta / batchSize);
+            c.delta = 0;
+        }
+
     flush();
     return true;
     
@@ -328,7 +375,7 @@ void NeuralNetwork::visitContributeStart(int vId) {
                             "stack");
     }
 }
-// visitContributeNode: called after all neighbors of a node have been visited during DFT.
+// visitContributeNode: called after all neighbors of a node have been seen during DFT.
 // outgoingContribution at this point holds the sum of weighted incoming contributions
 // from the next layer. This function:
 //   1. Multiplies outgoingContribution by the activation derivative at this node
